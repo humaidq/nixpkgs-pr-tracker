@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2024 Humaid Alqasimi <https://huma.id>
+# SPDX-License-Identifier: CC0-1.0
+version = 1
+
+[[annotations]]
+path = ["go.sum", "flake.lock", "app/pnpm-lock.yaml", "app/package.json"]
+SPDX-FileCopyrightText = "2024 Humaid Alqasimi <https://huma.id>"
+SPDX-License-Identifier = "CC0-1.0"

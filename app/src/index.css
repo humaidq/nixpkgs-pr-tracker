@@ -1,0 +1,18 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Humaid Alqasimi <https://huma.id>
+ * SPDX-License-Identifier: AGPL-3.0-or-later WITH GPL-3.0-linking-exception
+ */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light;
+  color: #232323;
+  background-color: #ffffff;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

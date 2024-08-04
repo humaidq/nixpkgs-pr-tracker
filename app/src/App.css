@@ -1,0 +1,39 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Humaid Alqasimi <https://huma.id>
+ * SPDX-License-Identifier: AGPL-3.0-or-later WITH GPL-3.0-linking-exception
+ */
+.branch-node {
+  height: 40px;
+  width: 150px;
+  border: 1px solid #eee;
+  padding: 5px;
+  border-radius: 5px;
+  background: #ccc;
+}
+
+.branch-node label {
+  display: block;
+  color: #232323;
+  font-size: 12px;
+  text-align: center;
+}
+
+.branch-accepted {
+  background: rgb(53 198 94);
+}
+
+.pr-node {
+  height: 150;
+  width: 300;
+  border: 1px solid #bbb;
+  padding: 5px;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.pr-node label {
+  display: block;
+  color: #232323;
+  font-size: 12px;
+  text-align: center;
+}
