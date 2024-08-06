@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/google/go-github/v63/github"
 	"regexp"
 	"slices"
@@ -37,6 +38,52 @@ var nextBranchTable = []struct {
 	{`^staging-((2[1-9]|[3-90].)\.\d{2})$`, "staging-next-$1"},
 }
 
+type hydraLink int
+
+const (
+	hydraLinkChannel hydraLink = iota
+	hydraLinkBranch
+)
+
+var hydraLinkTable = []struct {
+	pattern string
+	path    string
+	link    hydraLink
+}{
+	// Branches
+	{`^python-updates$`, "nixpkgs/python-updates", hydraLinkBranch},
+	{`^staging-next$`, "nixpkgs/staging-next", hydraLinkBranch},
+	// There's no staging-next-21.11 for some reason.
+	{
+		`^staging-next-([013-9]\d\.\d{2}|2(1\.05|[2-90]\.\d{2}))$`,
+		"nixpkgs/staging-next-$1", hydraLinkBranch,
+	},
+	{`^haskell-updates$`, "nixpkgs/haskell-updates", hydraLinkBranch},
+	{`^master$`, "nixpkgs/trunk", hydraLinkBranch},
+
+	// Channels
+	{`^nixpkgs-unstable$`, "nixpkgs/trunk/unstable", hydraLinkChannel},
+	{`^nixos-unstable-small$`, "nixos/unstable-small/tested", hydraLinkChannel},
+	{`^nixos-unstable$`, "nixos/trunk-combined/tested", hydraLinkChannel},
+	{`^nixos-(\d.*)$`, "nixos/release-$1/tested", hydraLinkChannel},
+}
+
+func getLink(branchName string) string {
+	for _, row := range hydraLinkTable {
+		re := regexp.MustCompile(row.pattern)
+		path := re.ReplaceAllString(branchName, row.path)
+		if re.MatchString(branchName) {
+			switch row.link {
+			case hydraLinkBranch:
+				return fmt.Sprintf("https://hydra.nixos.org/jobset/%s#tabs-jobs", path)
+			case hydraLinkChannel:
+				return fmt.Sprintf("https://hydra.nixos.org/job/%s#tabs-constituents", path)
+			}
+		}
+	}
+	return ""
+}
+
 var branchPrefixes = []string{
 	"python-updates",
 	"staging",
@@ -52,7 +99,7 @@ type PR struct {
 	ID             int
 	Title          string
 	AuthorUsername string
-	MergedStatus   string
+	Accepted       bool
 	Branches       BranchTree
 }
 
@@ -64,7 +111,12 @@ type BranchTree struct {
 }
 
 func GetBranchesForPR(prId int) (*PR, error) {
-	client := github.NewClient(nil).WithAuthToken(githubToken)
+	var client *github.Client
+	if len(githubToken) > 0 {
+		client = github.NewClient(nil).WithAuthToken(githubToken)
+	} else {
+		client = github.NewClient(nil)
+	}
 	pr, _, err := client.PullRequests.Get(context.Background(), "NixOS", "nixpkgs", prId)
 	if err != nil {
 		return &PR{}, err
@@ -78,6 +130,7 @@ func GetBranchesForPR(prId int) (*PR, error) {
 		Title:          *pr.Title,
 		AuthorUsername: *pr.User.Login,
 		Branches:       tree,
+		Accepted:       tree.Accepted,
 	}
 
 	return &prResult, nil
@@ -100,6 +153,7 @@ func buildBranches(branchName string, commit string) BranchTree {
 		BranchName: branchName,
 		Accepted:   contains,
 		Children:   children,
+		HydraLink:  getLink(branchName),
 	}
 }
 

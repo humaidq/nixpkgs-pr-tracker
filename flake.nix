@@ -24,15 +24,23 @@
         packages.default = pkgs.buildGoModule {
           name = "nix-tracker";
           src = ./.;
-          buildInputs = [
+          nativeBuildInputs = [
             pkgs.git
+            pkgs.just
+            pkgs.pnpm
+            pkgs.nodejs_22
           ];
           # Because vendor file exists, need to set to null
-          vendorHash = null;
+          vendorHash = "sha256-Tv/K5Q8aDsyMWZgx5ZtCwLqFJQsO4/+nWLonm5jORs8=";
+          # build react app
+          preBuild = ''
+            just build-react
+          '';
+
           meta = with pkgs.lib; {
             description = "Nixpkgs PR Tracker";
             homepage = "https://github.com/humaidq/nix-tracker";
-            license = licenses.agpl3;
+            license = licenses.agpl3Plus;
           };
         };
       };

@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 <div align="center">
     <h1>Nixpkgs PR Tracker</h1>
-    <p>Tracks a pull requests across nixpkgs release branches</p>
+    <p>Tracks a pull request across nixpkgs release branches</p>
 </div>
 
 [![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
@@ -53,5 +53,5 @@ This repository contains modified work based on
 modified at 2024-08-03. The work used is only the branch and link maps, which
 has been re-implemented in Go.
 
-[Nix]: https://zero-to-nix.com/start/install)
+[Nix]: https://zero-to-nix.com/start/install
 [nix-direnv]: https://github.com/nix-community/nix-direnv

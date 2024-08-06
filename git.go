@@ -7,17 +7,19 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/log"
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/robfig/cron/v3"
 )
 
 // Commit map contains commits and which branches it exists in
 var commitMap = make(map[string][]string)
+var cacheBuilt = false
 var lock sync.Mutex
 
 var releaseRegex = regexp.MustCompile(`-(\d\d).(\d\d)`)
@@ -44,21 +46,17 @@ func setupCache() error {
 			return fmt.Errorf("failed to update nixpkgs & commit map: %w", err)
 		}
 	}
+	cacheBuilt = true
 
-	// Schedule auto-update of the commit maps
-	c := cron.New()
-	_, err := c.AddFunc("@every 15m", func() {
+	// Cache update loop
+	for {
+		time.Sleep(15 * time.Minute)
+		log.Info("scheduler: Updating commit map")
 		err := updateCommitMap(true)
 		if err != nil {
 			log.Error("scheduler: Failed to update commit map", "error", err)
 		}
-	})
-	if err != nil {
-		return fmt.Errorf("failed to schedule auto-update: %w", err)
 	}
-	c.Start()
-
-	return nil
 }
 
 func cloneNixpkgs() error {
@@ -138,7 +136,9 @@ func mapWorker(id int, jobs <-chan string) {
 				break
 			}
 			lock.Lock()
-			commitMap[c.Hash.String()] = append(commitMap[c.Hash.String()], branchName)
+			if !slices.Contains(commitMap[c.Hash.String()], branchName) {
+				commitMap[c.Hash.String()] = append(commitMap[c.Hash.String()], branchName)
+			}
 			lock.Unlock()
 		}
 		log.Info("Completed mapping", "branch", branchName, "worker", id)

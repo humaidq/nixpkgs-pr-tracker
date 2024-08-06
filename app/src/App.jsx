@@ -83,18 +83,14 @@ const flattenTree = (pr) => {
   return { nodes, edges };
 };
 
-//const nodeWidth = 150;
-//const nodeHeight = 50;
-
 const nodeTypeSizes = {
   branch: { width: 150, height: 40 },
-  pr: { width: 300, height: 150 },
+  pr: { width: 300, height: 100 },
 };
 
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
 const getLayoutedElements = (nodes, edges, direction = "TB") => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
   const isHorizontal = direction === "LR";
   dagreGraph.setGraph({ rankdir: direction });
 
@@ -118,8 +114,6 @@ const getLayoutedElements = (nodes, edges, direction = "TB") => {
       ...node,
       targetPosition: isHorizontal ? "left" : "top",
       sourcePosition: isHorizontal ? "right" : "bottom",
-      // We are shifting the dagre node position (anchor=center center) to the top left
-      // so it matches the React Flow node anchor point (top left).
       position: {
         x: nodeWithPosition.x - nodeWidth / 2,
         y: nodeWithPosition.y - nodeHeight / 2,
@@ -186,6 +180,14 @@ function App() {
         colorMode="light"
       >
         <Panel>
+          <h2 className="nm">Nixpkgs PR Tracker</h2>
+          <p className="nm">
+            <small>
+              <a href="https://github.com/humaidq/nixpkgs-pr-tracker">
+                Source Code
+              </a>
+            </small>
+          </p>
           <form onSubmit={handleSubmit}>
             <input
               id={"prId"}
@@ -193,11 +195,10 @@ function App() {
               value={prValue}
               onChange={handlePrValue}
             ></input>
-            <button>Check</button>
+            <button className={"btn"}>Check</button>
           </form>
         </Panel>
         <Controls />
-        <MiniMap />
         <Background />
       </ReactFlow>
     </div>
