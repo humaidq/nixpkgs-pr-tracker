@@ -27,6 +27,7 @@ var releaseRegex = regexp.MustCompile(`-(\d\d).(\d\d)`)
 const oldestYear = 23
 
 const REPO_PATH = "nixpkgs"
+const REPO_URL = "https://github.com/nixos/nixpkgs.git"
 
 func setupCache() error {
 	// Fetch fresh clone of nixpkgs if it doesn't exist
@@ -60,7 +61,7 @@ func setupCache() error {
 }
 
 func cloneNixpkgs() error {
-	cmd := exec.Command("git", "clone", "https://github.com/nixos/nixpkgs.git", REPO_PATH)
+	cmd := exec.Command("git", "clone", REPO_URL, REPO_PATH)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("failed to clone nixpkgs: %w", err)
@@ -69,9 +70,15 @@ func cloneNixpkgs() error {
 }
 
 func updateNixpkgs() error {
-	cmd := exec.Command("git", "fetch", "--all")
+	// Make sure it uses https instead of ssh
+	cmd := exec.Command("git", "remote", "set-url", "origin", REPO_URL)
 	cmd.Dir = REPO_PATH
 	err := cmd.Run()
+
+	// Fetch all branches
+	cmd = exec.Command("git", "fetch", "--all")
+	cmd.Dir = REPO_PATH
+	err = cmd.Run()
 
 	if err != nil {
 		return fmt.Errorf("failed to update nixpkgs: %w", err)
