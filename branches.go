@@ -5,11 +5,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/charmbracelet/log"
 	"github.com/google/go-github/v63/github"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // GetBranchesForCommit returns the branches that contain the given commit
@@ -103,6 +105,8 @@ type PR struct {
 	Branches       BranchTree
 }
 
+var client *github.Client
+
 type BranchTree struct {
 	BranchName string
 	Accepted   bool
@@ -110,25 +114,52 @@ type BranchTree struct {
 	Children   []BranchTree
 }
 
-func GetBranchesForPR(prId int) (*PR, error) {
-	var client *github.Client
-	if len(githubToken) > 0 {
-		client = github.NewClient(nil).WithAuthToken(githubToken)
-	} else {
-		client = github.NewClient(nil)
+type GHPullRequest struct {
+	ID             int
+	Title          string
+	AuthorUsername string
+	MergeBranch    string
+	CommitHash     string
+	CachedAt       time.Time
+}
+
+var prCache = make(map[int]GHPullRequest)
+
+func getGHPR(prId int) (GHPullRequest, error) {
+	// get from cache otherwise fetch from github and store in cache
+	if pr, ok := prCache[prId]; ok && pr.CachedAt.Add(6*time.Hour).After(time.Now()) {
+		log.Debug("Serving from cache", "pr", prId)
+		return pr, nil
 	}
+	log.Debug("Fetching PR from GitHub API", "pr", prId)
 	pr, _, err := client.PullRequests.Get(context.Background(), "NixOS", "nixpkgs", prId)
+	if err != nil {
+		return GHPullRequest{}, err
+	}
+	ghpr := GHPullRequest{
+		ID:             prId,
+		Title:          *pr.Title,
+		AuthorUsername: *pr.User.Login,
+		MergeBranch:    *pr.Base.Ref,
+		CommitHash:     *pr.Head.SHA,
+		CachedAt:       time.Now(),
+	}
+	prCache[prId] = ghpr
+	return ghpr, nil
+}
+
+func GetBranchesForPR(prId int) (*PR, error) {
+	pr, err := getGHPR(prId)
 	if err != nil {
 		return &PR{}, err
 	}
 	// PR target branch
-	branchName := *pr.Base.Ref
-	tree := buildBranches(branchName, *pr.Head.SHA)
+	tree := buildBranches(pr.MergeBranch, pr.CommitHash)
 
 	prResult := PR{
 		ID:             prId,
-		Title:          *pr.Title,
-		AuthorUsername: *pr.User.Login,
+		Title:          pr.Title,
+		AuthorUsername: pr.AuthorUsername,
 		Branches:       tree,
 		Accepted:       tree.Accepted,
 	}

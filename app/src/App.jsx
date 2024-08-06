@@ -141,6 +141,15 @@ function App() {
     fetch("/pr?id=" + prValue)
       .then((response) => response.json())
       .then((data) => {
+        if (data["error"]) {
+          toast.update(loadingToast, {
+            render: data["error"],
+            type: "error",
+            isLoading: false,
+            autoClose: 5000,
+          });
+          return;
+        }
         console.log(data);
         toast.update(loadingToast, {
           render: "Pull request tracked!",

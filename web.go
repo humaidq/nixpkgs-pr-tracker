@@ -24,16 +24,20 @@ func runWebServer() {
 
 	f.Get("/pr", func(c flamego.Context, r flamego.Render, logger *log.Logger) {
 		if c.Query("id") != "" {
+			if !cacheBuilt {
+				r.JSON(http.StatusBadRequest, map[string]string{"error": "Commits are not yet fully indexed. Please try again in a few minutes."})
+				return
+			}
 			prId, err := strconv.Atoi(c.Query("id"))
 			if err != nil {
 				logger.Error("failed to parse PR ID as int", "error", err)
-				// TODO properly respond with error
+				r.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid pull request ID."})
 				return
 			}
 			pr, err := GetBranchesForPR(prId)
 			if err != nil {
 				logger.Error("Failed to get branches for PR", "pr", prId, "error", err)
-				// TODO properly respond with error
+				r.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to fetch pull request."})
 				return
 			}
 			r.JSON(http.StatusOK, pr)

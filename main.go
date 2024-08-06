@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/go-github/v63/github"
 )
 
 var (
@@ -22,7 +23,9 @@ func loadEnv() {
 
 	if os.Getenv("GITHUB_TOKEN") != "" {
 		githubToken = os.Getenv("GITHUB_TOKEN")
+		client = github.NewClient(nil).WithAuthToken(githubToken)
 	} else {
+		client = github.NewClient(nil)
 		log.Warn("GITHUB_TOKEN is not set, you may hit the API rate limit...")
 	}
 }
