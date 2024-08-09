@@ -24,7 +24,7 @@ func runWebServer() {
 
 	f.Get("/pr", func(c flamego.Context, r flamego.Render, logger *log.Logger) {
 		if c.Query("id") != "" {
-			if !cacheBuilt {
+			if !indexer.Cache.Built {
 				r.JSON(http.StatusBadRequest, map[string]string{"error": "Commits are not yet fully indexed. Please try again in a few minutes."})
 				return
 			}

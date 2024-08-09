@@ -12,7 +12,10 @@ function BranchNode({ data }) {
           position={Position.Bottom}
           isConnectable={false}
         />
-        <a href={data.HydraLink} target="_blank">
+        <a
+          href={data.HydraLink || undefined}
+          target={data.HydraLink ? "_blank" : undefined}
+        >
           <label>{data.BranchName}</label>
         </a>
       </div>

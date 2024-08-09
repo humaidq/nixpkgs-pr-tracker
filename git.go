@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -17,46 +16,68 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-// Commit map contains commits and which branches it exists in
-var commitMap = make(map[string][]string)
-var cacheBuilt = false
-var lock sync.Mutex
+const REPO_PATH = "nixpkgs"
+const REPO_URL = "https://github.com/nixos/nixpkgs.git"
+const OLDEST_YEAR = 00
+const CACHE_FILE = "cache.bin"
+
+type Indexer struct {
+	Cache    *Cache
+	workerWg sync.WaitGroup
+}
 
 var releaseRegex = regexp.MustCompile(`-(\d\d).(\d\d)`)
 
-const oldestYear = 23
+func NewIndexer() *Indexer {
+	cache := NewCache()
+	return &Indexer{
+		Cache: cache,
+	}
+}
 
-const REPO_PATH = "nixpkgs"
-const REPO_URL = "https://github.com/nixos/nixpkgs.git"
+func (i *Indexer) LoadCache() error {
+	e := i.Cache.LoadFromFile(CACHE_FILE)
+	if e != nil {
+		log.Error("Failed to load cache from file", "error", e)
+	}
 
-func setupCache() error {
-	// Fetch fresh clone of nixpkgs if it doesn't exist
 	if _, err := os.Stat(REPO_PATH); os.IsNotExist(err) {
 		log.Infof("'%s' not found, cloning a fresh copy. This may take a while...\n", REPO_PATH)
 		err := cloneNixpkgs()
 		if err != nil {
 			return fmt.Errorf("failed to clone nixpkgs: %w", err)
 		}
-		err = updateCommitMap(false)
+		err = i.updateCommitMap(false)
 		if err != nil {
 			return fmt.Errorf("failed to update commit map: %w", err)
 		}
 	} else {
-		err := updateCommitMap(true)
+		err := i.updateCommitMap(true)
 		if err != nil {
 			return fmt.Errorf("failed to update nixpkgs & commit map: %w", err)
 		}
 	}
-	cacheBuilt = true
+	i.Cache.Built = true
+	log.Info("Cache built, saving to file...")
+	err := i.Cache.SaveToFile(CACHE_FILE)
+	if err != nil {
+		log.Error("Failed to save cache to file", "error", err)
+	}
+	log.Info("Cache saved to file")
 
 	// Cache update loop
 	for {
 		time.Sleep(15 * time.Minute)
 		log.Info("scheduler: Updating commit map")
-		err := updateCommitMap(true)
+		err = i.updateCommitMap(true)
 		if err != nil {
 			log.Error("scheduler: Failed to update commit map", "error", err)
 		}
+		err = i.Cache.SaveToFile("cache.bin")
+		if err != nil {
+			log.Error("Failed to save cache to file", "error", err)
+		}
+		log.Info("Cache saved to file")
 	}
 }
 
@@ -76,6 +97,7 @@ func updateNixpkgs() error {
 	err := cmd.Run()
 
 	// Fetch all branches
+	// TODO don't give up
 	cmd = exec.Command("git", "fetch", "--all")
 	cmd.Dir = REPO_PATH
 	err = cmd.Run()
@@ -118,7 +140,7 @@ func getAllBranchNames() (branches []string, err error) {
 	return branches, nil
 }
 
-func mapWorker(id int, jobs <-chan string) {
+func (i *Indexer) mapWorker(id int, jobs <-chan string) {
 	for branchName := range jobs {
 		repo, err := git.PlainOpen(REPO_PATH)
 		if err != nil {
@@ -137,28 +159,35 @@ func mapWorker(id int, jobs <-chan string) {
 			log.Error("Couldn't get log for branch", "branch", branchName, "error", err, "worker", id)
 			return
 		}
+		last := i.Cache.GetLastBranchHead(branchName)
 		for {
 			c, err := cIter.Next()
 			if err != nil {
 				break
 			}
-			lock.Lock()
-			if !slices.Contains(commitMap[c.Hash.String()], branchName) {
-				commitMap[c.Hash.String()] = append(commitMap[c.Hash.String()], branchName)
+			// We shouldn't re-index commits we've already indexed
+			if c.Hash.String() == last {
+				break
 			}
-			lock.Unlock()
+			i.Cache.AddCommitToBranch(c.Hash.String(), branchName)
 		}
+
+		i.Cache.SetLastBranchHead(branchName, ref.Hash().String())
+
 		log.Info("Completed mapping", "branch", branchName, "worker", id)
+		i.workerWg.Done()
 	}
 }
 
-func updateCommitMap(updateRepo bool) error {
+func (i *Indexer) updateCommitMap(updateRepo bool) error {
+	log.Info("Updating nixpkgs")
 	if updateRepo {
 		err := updateNixpkgs()
 		if err != nil {
 			return fmt.Errorf("updateCommitMap: %w", err)
 		}
 	}
+	log.Info("Getting list of branches")
 	branches, err := getAllBranchNames()
 	if err != nil {
 		return fmt.Errorf("updateCommitMap: %w", err)
@@ -166,12 +195,16 @@ func updateCommitMap(updateRepo bool) error {
 	log.Info("Starting to build commit map...")
 	jobs := make(chan string, 3)
 	for w := 1; w <= 3; w++ {
-		go mapWorker(w, jobs)
+		go i.mapWorker(w, jobs)
 	}
 
 	for _, branchName := range branches {
+		i.workerWg.Add(1)
 		jobs <- branchName
 	}
+
+	i.workerWg.Wait()
+	close(jobs)
 
 	return nil
 }

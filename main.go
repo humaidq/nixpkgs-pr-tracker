@@ -30,8 +30,11 @@ func loadEnv() {
 	}
 }
 
+var indexer *Indexer
+
 func main() {
 	loadEnv()
-	go setupCache()
+	indexer = NewIndexer()
+	go indexer.LoadCache()
 	runWebServer()
 }

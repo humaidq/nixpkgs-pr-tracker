@@ -4,3 +4,4 @@ result
 .direnv/
 nixpkgs-pr-tracker
 nixpkgs/
+cache.bin

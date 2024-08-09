@@ -3,24 +3,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"github.com/charmbracelet/log"
 	"github.com/google/go-github/v63/github"
 	"regexp"
-	"slices"
-	"strconv"
 	"strings"
-	"time"
 )
-
-// GetBranchesForCommit returns the branches that contain the given commit
-func GetBranchesForCommit(commitHash string) []string {
-	lock.Lock()
-	value := commitMap[commitHash]
-	lock.Unlock()
-	return value
-}
 
 var nextBranchTable = []struct {
 	pattern string
@@ -114,42 +101,8 @@ type BranchTree struct {
 	Children   []BranchTree
 }
 
-type GHPullRequest struct {
-	ID             int
-	Title          string
-	AuthorUsername string
-	MergeBranch    string
-	CommitHash     string
-	CachedAt       time.Time
-}
-
-var prCache = make(map[int]GHPullRequest)
-
-func getGHPR(prId int) (GHPullRequest, error) {
-	// get from cache otherwise fetch from github and store in cache
-	if pr, ok := prCache[prId]; ok && pr.CachedAt.Add(6*time.Hour).After(time.Now()) {
-		log.Debug("Serving from cache", "pr", prId)
-		return pr, nil
-	}
-	log.Debug("Fetching PR from GitHub API", "pr", prId)
-	pr, _, err := client.PullRequests.Get(context.Background(), "NixOS", "nixpkgs", prId)
-	if err != nil {
-		return GHPullRequest{}, err
-	}
-	ghpr := GHPullRequest{
-		ID:             prId,
-		Title:          *pr.Title,
-		AuthorUsername: *pr.User.Login,
-		MergeBranch:    *pr.Base.Ref,
-		CommitHash:     *pr.Head.SHA,
-		CachedAt:       time.Now(),
-	}
-	prCache[prId] = ghpr
-	return ghpr, nil
-}
-
 func GetBranchesForPR(prId int) (*PR, error) {
-	pr, err := getGHPR(prId)
+	pr, err := indexer.Cache.getGHPR(prId)
 	if err != nil {
 		return &PR{}, err
 	}
@@ -176,10 +129,7 @@ func buildBranches(branchName string, commit string) BranchTree {
 		}
 	}
 
-	// Check whether commit exists in the branch
-	lock.Lock()
-	contains := slices.Contains(commitMap[commit], branchName)
-	lock.Unlock()
+	contains := indexer.Cache.CommitExistsInBranch(commit, branchName)
 	return BranchTree{
 		BranchName: branchName,
 		Accepted:   contains,
@@ -191,13 +141,6 @@ func buildBranches(branchName string, commit string) BranchTree {
 func validBranchToCache(branchName string) bool {
 	for _, pre := range branchPrefixes {
 		if strings.HasPrefix(branchName, pre) {
-			releaseMatch := releaseRegex.FindStringSubmatch(branchName)
-			if len(releaseMatch) > 1 {
-				year, err := strconv.Atoi(releaseMatch[1])
-				if err == nil && year < oldestYear {
-					return false
-				}
-			}
 			return true
 		}
 	}
